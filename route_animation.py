@@ -37,15 +37,15 @@ def main():
   heads = ax.scatter([], [], c='b', zorder=2)
   no_head = np.full(2, np.nan)
   end_pts = np.zeros((len(routes), 2))
-  plot_data = [(np.flipud(r.T), l) for r, l in zip(routes, lines)]
+  plot_data = [(np.fliplr(r), l) for r, l in zip(routes, lines)]
 
   def update_lines(num):
     for i, (route, line) in enumerate(plot_data):
       if num < route.shape[0]:
-        line.set_data(route[:, :num])
-        end_pts[i] = route[:, num]
-      elif num == route.shape[1]:
-        line.set_data(route[:, :num])
+        line.set_data(route[:num].T)
+        end_pts[i] = route[num]
+      elif num == route.shape[0]:
+        line.set_data(route[:num].T)
         end_pts[i] = no_head
       else:
         end_pts[i] = no_head
