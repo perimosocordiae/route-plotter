@@ -2,3 +2,4 @@
 build/
 tiles/
 *.egg-info/
+*.mp4
