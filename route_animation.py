@@ -33,33 +33,51 @@ def main():
   print('Assembled %d x %d background map image.' % bg_img.shape[:2])
 
   fig, ax = _setup_figure(bg_img, bg_extent, scale=args.scale)
+  max_duration = max(s[-1] for _,s in routes)
+  frame_times = np.linspace(0, max_duration, args.num_frames)
+  anim = _animate(fig, ax, routes, frame_times)
+  print('Prepared animation loop.')
+
+  if args.save:
+    dpi = plt.rcParams.get('figure.dpi', 100.0)
+    anim.save(args.save, dpi=dpi, savefig_kwargs=dict(pad_inches=0))
+  else:
+    plt.show()
+
+
+def _animate(fig, ax, routes, frame_data):
   lines = ax.plot(np.zeros((0, len(routes))), c='r', alpha=0.75, zorder=1)
   heads = ax.scatter([], [], c='b', zorder=2)
+  timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes,
+                  bbox=dict(facecolor='white'),
+                  verticalalignment='bottom', horizontalalignment='right')
   no_head = np.full(2, np.nan)
   end_pts = np.zeros((len(routes), 2))
-  plot_data = [(np.fliplr(r), l) for r, l in zip(routes, lines)]
+  plot_data = []
+  for i, line in enumerate(lines):
+    r, s = routes[i]
+    plot_data.append((np.fliplr(r), s, line))
 
-  def update_lines(num):
-    for i, (route, line) in enumerate(plot_data):
-      if num < route.shape[0]:
-        line.set_data(route[:num].T)
-        end_pts[i] = route[num]
-      elif num == route.shape[0]:
-        line.set_data(route[:num].T)
+  def update_lines(num_seconds):
+    for i, (xy, time, line) in enumerate(plot_data):
+      idx = np.searchsorted(time, num_seconds)
+      if idx < xy.shape[0]:
+        line.set_data(xy[:idx].T)
+        end_pts[i] = xy[idx]
+      elif idx == xy.shape[0]:
+        line.set_data(xy[:idx].T)
         end_pts[i] = no_head
       else:
         end_pts[i] = no_head
     heads.set_offsets(end_pts)
+    # update the clock
+    mins, secs = divmod(num_seconds, 60)
+    hours, mins = divmod(mins, 60)
+    timer.set_text('%d:%02d:%02d' % (hours, mins, secs))
     return lines
 
-  num_frames = max(r.shape[0] for r in routes)
-  dpi = plt.rcParams.get('figure.dpi', 100.0)
-  anim = FuncAnimation(fig, update_lines, frames=num_frames, blit=True,
+  return FuncAnimation(fig, update_lines, frames=frame_data, blit=True,
                        interval=100, repeat=True, repeat_delay=150)
-  if args.save:
-    anim.save(args.save, dpi=dpi, savefig_kwargs=dict(pad_inches=0))
-  else:
-    plt.show()
 
 
 def parse_args():
@@ -81,6 +99,8 @@ def parse_args():
   ap.add_argument('--max-start-dist', type=float, default=200,
                   help=('Maximum distance from route start to the '
                         'mean starting location, in meters.'))
+  ap.add_argument('--num-frames', type=int, default=500,
+                  help='Number of frames to animate.')
   ap.add_argument('route', type=open, nargs='+', help='Route file(s) to use.')
   return ap.parse_args()
 
@@ -107,9 +127,11 @@ def _setup_figure(bg_img, bg_extent, scale=1.0):
 def _parse_routes(file_paths):
   all_coords = []
   for fh in file_paths:
-    coords = parse_route(fh)
+    coords, times = parse_route(fh, return_time=True)
     if coords.ndim == 2 and coords.shape[0] >= 2 and coords.shape[1] == 2:
-      all_coords.append(coords)
+      seconds = (times - times[0]).astype('timedelta64[s]').view(int)
+      assert coords.shape[0] == seconds.shape[0]
+      all_coords.append((coords, seconds))
   return all_coords
 
 
@@ -118,8 +140,8 @@ def _filter_routes(routes, loop_gap_threshold=200, start_cluster_radius=200):
     - start and end in roughly the same place (forming a loop)
     - start close to the mean starting location
   """
-  starts = np.array([r[0] for r in routes])
-  ends = np.array([r[-1] for r in routes])
+  starts = np.array([r[0] for r,_ in routes])
+  ends = np.array([r[-1] for r,_ in routes])
 
   # convert lat/lon displacements into approximate distances (meters)
   gap_dists = _greatcircle_distance(starts, ends)
@@ -135,8 +157,8 @@ def _filter_routes(routes, loop_gap_threshold=200, start_cluster_radius=200):
 
 
 def _bounding_box(routes):
-  min_coord = np.array([r.min(axis=0) for r in routes]).min(axis=0)
-  max_coord = np.array([r.max(axis=0) for r in routes]).max(axis=0)
+  min_coord = np.array([r.min(axis=0) for r,_ in routes]).min(axis=0)
+  max_coord = np.array([r.max(axis=0) for r,_ in routes]).max(axis=0)
   return coords_to_bbox([min_coord, max_coord])
 
 
