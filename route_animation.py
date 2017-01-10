@@ -36,7 +36,9 @@ def main():
   fig, ax = _setup_figure(bg_img, bg_extent, scale=args.scale)
   max_duration = max(s[-1] for _,s in routes)
   frame_times = np.linspace(0, max_duration, args.num_frames)
-  anim = _animate(fig, ax, routes, frame_times)
+  anim = _animate(fig, ax, routes, frame_times, lc=args.line_color,
+                  lw=args.line_width, hc=args.head_color, hs=args.head_size,
+                  line_alpha=args.line_alpha, head_alpha=args.head_alpha)
   print('Prepared animation loop.')
 
   if args.save:
@@ -46,14 +48,17 @@ def main():
     plt.show()
 
 
-def _animate(fig, ax, routes, frame_data):
-  lines = ax.plot(np.zeros((0, len(routes))), c='r', alpha=0.75, zorder=1)
-  heads = ax.scatter([], [], c='b', zorder=2)
+def _animate(fig, ax, routes, frame_data, lc='r', lw=2, line_alpha=0.75,
+             hc='b', hs=20, head_alpha=1):
+  n = len(routes)
+  lines = ax.plot(np.zeros((0, n)), c=lc, lw=lw, alpha=line_alpha, zorder=1)
+  heads = ax.scatter([], [], c=hc, s=hs, alpha=head_alpha, edgecolors='none',
+                     zorder=2)
   timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes,
                   bbox=dict(facecolor='white'),
                   verticalalignment='bottom', horizontalalignment='right')
   no_head = np.full(2, np.nan)
-  end_pts = np.zeros((len(routes), 2))
+  end_pts = np.zeros((n, 2))
   plot_data = []
   for i, line in enumerate(lines):
     r, s = routes[i]
@@ -103,6 +108,12 @@ def parse_args():
                         'mean starting location, in meters.'))
   ap.add_argument('--num-frames', type=int, default=500,
                   help='Number of frames to animate.')
+  ap.add_argument('--line-color', type=str, default='red', help='Line color.')
+  ap.add_argument('--line-width', type=float, default=1.5, help='Line width.')
+  ap.add_argument('--line-alpha', type=float, default=.75, help='Line opacity.')
+  ap.add_argument('--head-color', type=str, default='blue', help='Head color.')
+  ap.add_argument('--head-size', type=float, default=36, help='Head size.')
+  ap.add_argument('--head-alpha', type=float, default=1, help='Head opacity.')
   ap.add_argument('route', type=str, nargs='+', help='Route file(s) to use.')
   args = ap.parse_args()
   if len(args.route) == 1:
