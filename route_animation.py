@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Create a matplotlib animation from route data."""
 from __future__ import print_function, division
+import glob
 import numpy as np
 import os
 import sys
@@ -101,8 +102,12 @@ def parse_args():
                         'mean starting location, in meters.'))
   ap.add_argument('--num-frames', type=int, default=500,
                   help='Number of frames to animate.')
-  ap.add_argument('route', type=open, nargs='+', help='Route file(s) to use.')
-  return ap.parse_args()
+  ap.add_argument('route', type=str, nargs='+', help='Route file(s) to use.')
+  args = ap.parse_args()
+  if len(args.route) == 1:
+    args.route = glob.glob(args.route[0])
+  args.route = map(open, args.route)
+  return args
 
 
 def _setup_figure(bg_img, bg_extent, scale=1.0):
