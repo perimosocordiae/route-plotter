@@ -58,8 +58,9 @@ def _animate(fig, ax, routes, frame_data):
   for i, line in enumerate(lines):
     r, s = routes[i]
     plot_data.append((np.fliplr(r), s, line))
+  artists = lines + [heads, timer]
 
-  def update_lines(num_seconds):
+  def update_frame(num_seconds):
     for i, (xy, time, line) in enumerate(plot_data):
       idx = np.searchsorted(time, num_seconds)
       if idx < xy.shape[0]:
@@ -75,9 +76,9 @@ def _animate(fig, ax, routes, frame_data):
     mins, secs = divmod(num_seconds, 60)
     hours, mins = divmod(mins, 60)
     timer.set_text('%d:%02d:%02d' % (hours, mins, secs))
-    return lines
+    return artists
 
-  return FuncAnimation(fig, update_lines, frames=frame_data, blit=True,
+  return FuncAnimation(fig, update_frame, frames=frame_data, blit=True,
                        interval=100, repeat=True, repeat_delay=150)
 
 
