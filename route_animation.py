@@ -134,7 +134,7 @@ def _parse_routes(file_paths):
   for fh in file_paths:
     coords, times = parse_route(fh, return_time=True)
     if coords.ndim == 2 and coords.shape[0] >= 2 and coords.shape[1] == 2:
-      seconds = (times - times[0]).astype('timedelta64[s]').view(int)
+      seconds = (times - times[0]).astype('timedelta64[s]').astype(int)
       assert coords.shape[0] == seconds.shape[0]
       all_coords.append((coords, seconds))
   return all_coords
