@@ -125,6 +125,8 @@ def _download_tile(x, y, zoom, cache_path):
 
 def _imread(path, flatten=False):
   img = Image.open(path)
+  if img.mode == 'P':
+    img = img.convert('RGB')
   if flatten:
     img = img.convert('F')
   return np.array(img)
