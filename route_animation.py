@@ -8,6 +8,8 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.collections import LineCollection
+from matplotlib.colors import to_rgb
 
 from route_plotter import parse_route, stitch_tiles, coords_to_bbox
 
@@ -25,6 +27,10 @@ def main():
   assert bool(routes), '_filter_routes removed all routes'
   print('Filtered to', len(routes), 'routes.')
 
+  frame_data = _prepare_frame_data(routes, num_frames=args.num_frames,
+                                   fade_secs=args.head_fade)
+  print('Split into', len(frame_data[0]), 'segments.')
+
   if not os.path.exists(args.tile_cache):
     os.makedirs(args.tile_cache)
   bg_img, bg_extent = stitch_tiles(_bounding_box(routes), zoom=args.zoom,
@@ -34,68 +40,95 @@ def main():
   print('Assembled %d x %d background map image.' % bg_img.shape[:2])
 
   fig, ax = _setup_figure(bg_img, bg_extent, scale=args.scale)
-  max_duration = max(s[-1] for _,s in routes)
-  frame_times = np.linspace(0, max_duration, args.num_frames)
-  anim = _animate(fig, ax, routes, frame_times, lc=args.line_color,
-                  lw=args.line_width, hc=args.head_color, hs=args.head_size,
-                  line_alpha=args.line_alpha, head_alpha=args.head_alpha)
+  anim = _animate(fig, ax, frame_data, line_width=args.line_width, fps=args.fps,
+                  tail_color=args.tail_color, head_color=args.head_color,
+                  tail_alpha=args.tail_alpha, head_alpha=args.head_alpha)
   print('Prepared animation loop.')
 
   if args.save:
+    print('Saving animation to', args.save)
     dpi = plt.rcParams.get('figure.dpi', 100.0)
     anim.save(args.save, dpi=dpi, savefig_kwargs=dict(pad_inches=0))
   else:
     plt.show()
 
 
-def _animate(fig, ax, routes, frame_times, lc='r', lw=2, line_alpha=0.75,
-             hc='b', hs=20, head_alpha=1):
-  nr = len(routes)
-  nf = len(frame_times)
+def _prepare_frame_data(routes, num_frames=500, fade_secs=90):
+  max_duration = max(s[-1] for _,s in routes)
+  frame_times, dt = np.linspace(0, max_duration, num_frames, retstep=True)
 
-  # set up empty artists with the desired styling
-  lines = ax.plot(np.zeros((0, nr)), c=lc, lw=lw, alpha=line_alpha, zorder=1)
-  heads = ax.scatter([], [], c=hc, s=hs, alpha=head_alpha, edgecolors='none',
-                     zorder=2)
-  timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes, zorder=3,
-                  verticalalignment='bottom', horizontalalignment='right',
-                  bbox=dict(facecolor='white'))
-  head_pts = np.full((nr, 2), np.nan)
-  heads.set_offsets(head_pts)
+  # convert fade_secs to frame units
+  fade_frames = fade_secs / dt
 
-  # collect all artists for blitting
-  artists = lines + [heads, timer]
-
-  # pre-calculate information for each frame
+  # generate timestamps
   mins, secs = divmod(frame_times, 60)
   hours, mins = divmod(mins, 60)
   timestamps = ['%d:%02d:%02d' % tt for tt in zip(hours, mins, secs)]
-  frame_idxs = np.zeros((nr, nf), dtype=int)
-  xy_data = []
-  for i, line in enumerate(lines):
-    route, time = routes[i]
-    frame_idxs[i] = np.searchsorted(time, frame_times)
-    xy_data.append(np.fliplr(route))
+
+  # break up routes into per-frame segments
+  frame_idxs = np.column_stack([np.searchsorted(time, frame_times)
+                                for _, time in routes])
+  segments = []
+  segment_frames = []
+  start_idxs = np.zeros(len(routes), dtype=int)
+  for frame, stop_idxs in enumerate(frame_idxs):
+    updated, = np.where(start_idxs < stop_idxs)
+    for i in updated:
+      r, _ = routes[i]
+      segments.append(r[start_idxs[i]:stop_idxs[i], ::-1])
+      segment_frames.append(frame)
+    start_idxs[updated] = stop_idxs[updated] - 1
+  segment_frames = np.array(segment_frames)
+
+  return segments, segment_frames, timestamps, fade_frames
+
+
+def _animate(fig, ax, frame_data, line_width=2, fps=10, tail_color='r',
+             tail_alpha=0.75, head_color='b', head_alpha=1):
+  segments, segment_frames, timestamps, fade_frames = frame_data
+  head_color = np.array(to_rgb(head_color))[None]
+  tail_color = np.array(to_rgb(tail_color))[None]
+
+  # start with all segments transparent
+  segment_colors = np.zeros((len(segments), 4), dtype=float)
+  lines = LineCollection(segments, linewidths=line_width, colors=segment_colors)
+  ax.add_collection(lines)
+
+  timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes, zorder=3,
+                  verticalalignment='bottom', horizontalalignment='right',
+                  bbox=dict(facecolor='white'))
 
   def update_frame(frame_idx):
-    line_end_idxs = frame_idxs[:, frame_idx]
+    frame_diff = frame_idx - segment_frames
+    mask = frame_diff < 0
+    # compute head alpha
+    alpha1 = 1 - np.minimum(frame_diff/fade_frames, 1)
+    alpha1[mask] = 0
+    alpha1 *= head_alpha
+    # compute tail alpha
+    alpha2 = (1 - mask) * tail_alpha
+    # composite alpha and colors
+    color, alpha = _blend_alpha(head_color, alpha1, tail_color, alpha2)
+    segment_colors[:, :3] = color
+    segment_colors[:, 3] = alpha
 
-    for i, xy in enumerate(xy_data):
-      idx = line_end_idxs[i]
-      if idx < xy.shape[0]:
-        lines[i].set_data(xy[:idx].T)
-        head_pts[i] = xy[idx]
-      elif idx == xy.shape[0]:
-        lines[i].set_data(xy[:idx].T)
-        head_pts[i,:] = np.nan
-      else:
-        head_pts[i,:] = np.nan
-    # update the clock
+    lines.set_color(segment_colors)
     timer.set_text(timestamps[frame_idx])
-    return artists
+    return lines, timer
 
-  return FuncAnimation(fig, update_frame, frames=nf, blit=True, interval=100,
-                       repeat=True, repeat_delay=150)
+  interval = 1000. / fps
+  return FuncAnimation(fig, update_frame, frames=len(timestamps), blit=True,
+                       interval=interval, repeat=True)
+
+
+def _blend_alpha(c1, a1, c2, a2):
+  # for details, see: https://en.wikipedia.org/wiki/Alpha_compositing
+  a21 = a2 * (1 - a1)
+  a = a1 + a21
+  c = c1 * a1[:,None] + c2 * a21[:,None]
+  denom = np.where(a == 0, 1, a)[:, None]
+  c /= denom
+  return c, a
 
 
 def parse_args():
@@ -119,12 +152,17 @@ def parse_args():
                         'mean starting location, in meters.'))
   ap.add_argument('--num-frames', type=int, default=500,
                   help='Number of frames to animate.')
-  ap.add_argument('--line-color', type=str, default='red', help='Line color.')
-  ap.add_argument('--line-width', type=float, default=1.5, help='Line width.')
-  ap.add_argument('--line-alpha', type=float, default=.75, help='Line opacity.')
-  ap.add_argument('--head-color', type=str, default='blue', help='Head color.')
-  ap.add_argument('--head-size', type=float, default=36, help='Head size.')
+  ap.add_argument('--fps', type=float, default=10, help='Frames per second.')
+  ap.add_argument('--line-width', type=float, default=2.5, help='Line width.')
+  ap.add_argument('--tail-color', type=str, default='blue',
+                  help='Color of trailing line.')
+  ap.add_argument('--tail-alpha', type=float, default=0.2,
+                  help='Opacity of trailing line.')
+  ap.add_argument('--head-color', type=str, default='red', help='Head color.')
   ap.add_argument('--head-alpha', type=float, default=1, help='Head opacity.')
+  ap.add_argument('--head-fade', type=float, default=90,
+                  help=('Number of seconds (in route time) over which the head'
+                        ' of the line fades out.'))
   ap.add_argument('route', type=str, nargs='+', help='Route file(s) to use.')
   args = ap.parse_args()
   if len(args.route) == 1:
