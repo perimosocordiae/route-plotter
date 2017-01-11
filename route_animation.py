@@ -54,11 +54,11 @@ def _animate(fig, ax, routes, frame_data, lc='r', lw=2, line_alpha=0.75,
   lines = ax.plot(np.zeros((0, n)), c=lc, lw=lw, alpha=line_alpha, zorder=1)
   heads = ax.scatter([], [], c=hc, s=hs, alpha=head_alpha, edgecolors='none',
                      zorder=2)
-  timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes,
-                  bbox=dict(facecolor='white'),
-                  verticalalignment='bottom', horizontalalignment='right')
-  no_head = np.full(2, np.nan)
-  end_pts = np.zeros((n, 2))
+  timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes, zorder=3,
+                  verticalalignment='bottom', horizontalalignment='right',
+                  bbox=dict(facecolor='white'))
+  head_pts = np.full((n, 2), np.nan)
+  heads.set_offsets(head_pts)
   plot_data = []
   for i, line in enumerate(lines):
     r, s = routes[i]
@@ -70,13 +70,12 @@ def _animate(fig, ax, routes, frame_data, lc='r', lw=2, line_alpha=0.75,
       idx = np.searchsorted(time, num_seconds)
       if idx < xy.shape[0]:
         line.set_data(xy[:idx].T)
-        end_pts[i] = xy[idx]
+        head_pts[i] = xy[idx]
       elif idx == xy.shape[0]:
         line.set_data(xy[:idx].T)
-        end_pts[i] = no_head
+        head_pts[i,:] = np.nan
       else:
-        end_pts[i] = no_head
-    heads.set_offsets(end_pts)
+        head_pts[i,:] = np.nan
     # update the clock
     mins, secs = divmod(num_seconds, 60)
     hours, mins = divmod(mins, 60)
