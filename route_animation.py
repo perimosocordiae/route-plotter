@@ -48,42 +48,54 @@ def main():
     plt.show()
 
 
-def _animate(fig, ax, routes, frame_data, lc='r', lw=2, line_alpha=0.75,
+def _animate(fig, ax, routes, frame_times, lc='r', lw=2, line_alpha=0.75,
              hc='b', hs=20, head_alpha=1):
-  n = len(routes)
-  lines = ax.plot(np.zeros((0, n)), c=lc, lw=lw, alpha=line_alpha, zorder=1)
+  nr = len(routes)
+  nf = len(frame_times)
+
+  # set up empty artists with the desired styling
+  lines = ax.plot(np.zeros((0, nr)), c=lc, lw=lw, alpha=line_alpha, zorder=1)
   heads = ax.scatter([], [], c=hc, s=hs, alpha=head_alpha, edgecolors='none',
                      zorder=2)
   timer = ax.text(1, 0, '0:00:00', transform=ax.transAxes, zorder=3,
                   verticalalignment='bottom', horizontalalignment='right',
                   bbox=dict(facecolor='white'))
-  head_pts = np.full((n, 2), np.nan)
+  head_pts = np.full((nr, 2), np.nan)
   heads.set_offsets(head_pts)
-  plot_data = []
-  for i, line in enumerate(lines):
-    r, s = routes[i]
-    plot_data.append((np.fliplr(r), s, line))
+
+  # collect all artists for blitting
   artists = lines + [heads, timer]
 
-  def update_frame(num_seconds):
-    for i, (xy, time, line) in enumerate(plot_data):
-      idx = np.searchsorted(time, num_seconds)
+  # pre-calculate information for each frame
+  mins, secs = divmod(frame_times, 60)
+  hours, mins = divmod(mins, 60)
+  timestamps = ['%d:%02d:%02d' % tt for tt in zip(hours, mins, secs)]
+  frame_idxs = np.zeros((nr, nf), dtype=int)
+  xy_data = []
+  for i, line in enumerate(lines):
+    route, time = routes[i]
+    frame_idxs[i] = np.searchsorted(time, frame_times)
+    xy_data.append(np.fliplr(route))
+
+  def update_frame(frame_idx):
+    line_end_idxs = frame_idxs[:, frame_idx]
+
+    for i, xy in enumerate(xy_data):
+      idx = line_end_idxs[i]
       if idx < xy.shape[0]:
-        line.set_data(xy[:idx].T)
+        lines[i].set_data(xy[:idx].T)
         head_pts[i] = xy[idx]
       elif idx == xy.shape[0]:
-        line.set_data(xy[:idx].T)
+        lines[i].set_data(xy[:idx].T)
         head_pts[i,:] = np.nan
       else:
         head_pts[i,:] = np.nan
     # update the clock
-    mins, secs = divmod(num_seconds, 60)
-    hours, mins = divmod(mins, 60)
-    timer.set_text('%d:%02d:%02d' % (hours, mins, secs))
+    timer.set_text(timestamps[frame_idx])
     return artists
 
-  return FuncAnimation(fig, update_frame, frames=frame_data, blit=True,
-                       interval=100, repeat=True, repeat_delay=150)
+  return FuncAnimation(fig, update_frame, frames=nf, blit=True, interval=100,
+                       repeat=True, repeat_delay=150)
 
 
 def parse_args():
