@@ -9,7 +9,12 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
-from matplotlib.colors import to_rgb
+# workaround for older matplotlib versions
+try:
+  from matplotlib.colors import to_rgb
+except ImportError:
+  import matplotlib.colors
+  to_rgb = matplotlib.colors.colorConverter.to_rgb
 
 from route_plotter import parse_route, stitch_tiles, coords_to_bbox
 
