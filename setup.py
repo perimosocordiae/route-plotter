@@ -21,8 +21,8 @@ setup(
     ],
     install_requires=[
         'numpy',
-        'matplotlib',
+        'matplotlib >= 1.5',
         'folium',
-        'Pillow'
+        'Pillow >= 2.0'
     ],
 )
