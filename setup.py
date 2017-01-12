@@ -23,6 +23,7 @@ setup(
         'numpy',
         'matplotlib >= 1.5',
         'folium',
+        'appdirs >= 1.4',
         'Pillow >= 2.0'
     ],
 )

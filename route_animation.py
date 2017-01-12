@@ -9,12 +9,20 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
+
 # workaround for older matplotlib versions
 try:
   from matplotlib.colors import to_rgb
 except ImportError:
   import matplotlib.colors
   to_rgb = matplotlib.colors.colorConverter.to_rgb
+
+# appdirs is an optional dependency
+try:
+  from appdirs import user_cache_dir
+except ImportError:
+  def user_cache_dir(appname=None):
+    return os.path.join(os.getcwd(), 'tiles')
 
 from route_plotter import parse_route, stitch_tiles, coords_to_bbox
 
@@ -137,7 +145,7 @@ def _blend_alpha(c1, a1, c2, a2):
 
 
 def parse_args():
-  cache_dir = os.path.join(os.path.dirname(__file__), 'tiles')
+  cache_dir = user_cache_dir(appname='route-plotter')
   ap = ArgumentParser(description=__doc__,
                       formatter_class=ArgumentDefaultsHelpFormatter)
   ap.add_argument('--color-tiles', action='store_true',
