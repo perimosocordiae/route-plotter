@@ -2,7 +2,7 @@
 
 Visualizations for running/walking/cycling route data.
 
-## Usage
+## Usage (macOS/Linux/programmers)
 
 ```sh
 git clone https://github.com/perimosocordiae/route-plotter.git
@@ -17,6 +17,18 @@ route_animation.py ~/path/to/route_data/* --save anim.mp4
 route_map.py ~/path/to/route_data/* --output map.html
 open map.html
 ```
+
+## Usage (Windows/non-programmers)
+
+ 1. [Install Anaconda](https://www.continuum.io/downloads#windows)
+ 2. Download and extract [the route-plotter code](https://github.com/perimosocordiae/route-plotter/archive/master.zip).
+ 3. Open a Command Prompt (`cmd.exe`) and navigate to the `route-plotter` folder.
+ 4. Type:
+  * `python route_animation.py c:\Users\your_username\RouteData\*`
+  * `python route_map.py c:\Users\your_username\RouteData\* --output map.html`
+
+To get the path to your running data, you can open the folder in File Explorer,
+click on the address bar, then copy the path that shows up.
 
 ## Animation options
 
