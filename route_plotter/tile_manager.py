@@ -83,7 +83,8 @@ def stitch_tiles(bbox, zoom=None, cachedir='.', flatten=True,
   j0 = int((padded_bbox.lon_min - tiles_bbox.lon_min) * scale_lon)
   i1 = int((padded_bbox.lat_max - tiles_bbox.lat_min) * scale_lat) + 1
   j1 = int((padded_bbox.lon_max - tiles_bbox.lon_min) * scale_lon) + 1
-  tile_image = tile_image[-i1:-i0, j0:j1]
+  i0, i1 = tile_image.shape[0] - i1, tile_image.shape[0] - i0
+  tile_image = tile_image[i0:i1, j0:j1]
 
   return tile_image, padded_bbox
 
