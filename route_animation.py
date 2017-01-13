@@ -197,7 +197,7 @@ def _setup_figure(bg_img, bg_extent, scale=1.0):
   ax.set_axis_off()
   ax.xaxis.set_major_locator(plt.NullLocator())
   ax.yaxis.set_major_locator(plt.NullLocator())
-  ax.imshow(bg_img, zorder=0, extent=bg_extent, cmap='Greys_r')
+  ax.imshow(bg_img, zorder=0, extent=bg_extent, cmap='Greys_r', aspect='auto')
   ax.autoscale(False)
   ax.margins(0, 0)
   return fig, ax
