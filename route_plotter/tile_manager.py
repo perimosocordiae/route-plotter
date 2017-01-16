@@ -79,12 +79,17 @@ def stitch_tiles(bbox, zoom=None, cachedir='.', flatten=True,
   px_lat, px_lon = tile_image.shape[:2]
   scale_lon = px_lon / (tiles_bbox.lon_max - tiles_bbox.lon_min)
   scale_lat = px_lat / (tiles_bbox.lat_max - tiles_bbox.lat_min)
-  i0 = int((padded_bbox.lat_min - tiles_bbox.lat_min) * scale_lat)
-  j0 = int((padded_bbox.lon_min - tiles_bbox.lon_min) * scale_lon)
-  i1 = int((padded_bbox.lat_max - tiles_bbox.lat_min) * scale_lat) + 1
-  j1 = int((padded_bbox.lon_max - tiles_bbox.lon_min) * scale_lon) + 1
-  i0, i1 = tile_image.shape[0] - i1, tile_image.shape[0] - i0
+  lon_idx = (np.array(padded_bbox[:2]) - tiles_bbox.lon_min) * scale_lon
+  lat_idx = (np.array(padded_bbox[2:]) - tiles_bbox.lat_min) * scale_lat
+  lon_idx[0], lat_idx[0] = np.floor([lon_idx[0], lat_idx[0]])
+  lon_idx[1], lat_idx[1] = np.ceil([lon_idx[1], lat_idx[1]])
+  j0, j1 = np.clip(lon_idx.astype(int), 0, px_lon)
+  i1, i0 = np.clip(px_lat - lat_idx.astype(int), 0, px_lat)
   tile_image = tile_image[i0:i1, j0:j1]
+
+  # sanity check
+  if 0 in tile_image.shape:
+    raise ValueError("Invalid image shape: %s" % tile_image.shape)
 
   return tile_image, padded_bbox
 
