@@ -61,7 +61,8 @@ def main():
   if args.save:
     print('Saving animation to', args.save)
     dpi = plt.rcParams.get('figure.dpi', 100.0)
-    anim.save(args.save, dpi=dpi, savefig_kwargs=dict(pad_inches=0))
+    anim.save(args.save, dpi=dpi, bitrate=args.bitrate,
+              savefig_kwargs=dict(pad_inches=0))
   else:
     plt.show()
 
@@ -166,6 +167,7 @@ def parse_args():
   ap.add_argument('--num-frames', type=int, default=500,
                   help='Number of frames to animate.')
   ap.add_argument('--fps', type=float, default=10, help='Frames per second.')
+  ap.add_argument('--bitrate', type=int, help='Bitrate when saving animation.')
   ap.add_argument('--line-width', type=float, default=2.5, help='Line width.')
   ap.add_argument('--tail-color', type=str, default='blue',
                   help='Color of trailing line.')
