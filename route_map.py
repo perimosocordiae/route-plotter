@@ -54,10 +54,10 @@ def main():
     line = line.strip()
     if not line:
       continue
-    if dont_add_css or line != '<style>':
+    if dont_add_css or line != '</style>':
       print(line)
     else:
-      print(line, GRAY_CSS)
+      print(GRAY_CSS, line)
       dont_add_css = True
   print("Results written to:", args.output)
 
