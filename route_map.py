@@ -19,7 +19,7 @@ TILES = [
 METADATA_FNS = {
     'start-time': lambda times, elevations: times[0],
     'duration': lambda times, elevations: times[-1] - times[0],
-    'height': lambda times, elevations: elevations.max(),
+    'height': lambda times, elevations: np.nanmax(elevations),
     'none': lambda times, elevations: 0,
 }
 GRAY_CSS = r'.leaflet-tile{filter:grayscale(1);-webkit-filter:grayscale(1);}'
