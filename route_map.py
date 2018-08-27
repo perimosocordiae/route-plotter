@@ -63,7 +63,7 @@ def main():
 
 
 def parse_args():
-  ap = ArgumentParser(description=__doc__, version='0.1')
+  ap = ArgumentParser(description=__doc__)
   ap.add_argument('--tileset', choices=TILES, default=TILES[0],
                   help='Map tileset. [%(default)s]')
   ap.add_argument('--line-colormap', default='YlOrRd',
