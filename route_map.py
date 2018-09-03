@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from matplotlib.colors import rgb2hex
 from matplotlib.cm import ScalarMappable
 
-from route_plotter import parse_route
+from route_plotter import Route, filter_routes
 
 TILES = [
     "OpenStreetMap",
@@ -17,27 +17,36 @@ TILES = [
     "Stamen Toner",
 ]
 METADATA_FNS = {
-    'start-time': lambda times, elevations: times[0],
-    'duration': lambda times, elevations: times[-1] - times[0],
-    'height': lambda times, elevations: np.nanmax(elevations),
-    'none': lambda times, elevations: 0,
+    'start-time': lambda route: route.start_time,
+    'duration': lambda route: route.seconds[-1],
+    'height': lambda route: np.nanmax(route.elevations),
+    'none': lambda route: 0,
 }
 GRAY_CSS = r'.leaflet-tile{filter:grayscale(1);-webkit-filter:grayscale(1);}'
 
 
 def main():
   args = parse_args()
+  routes = [Route.parse(f, read_elevation=True) for f in args.route]
+  if not routes:
+    print('No valid route data provided.', file=sys.stderr)
+    return
 
-  coords, meta = aggregate_route_data(args.route, METADATA_FNS[args.color_by])
-  loc, mask = calc_center(coords, args.exclude_stdv)
-  coords, meta = coords[mask], meta[mask]
+  routes = filter_routes(routes, start_cluster_radius=args.max_start_dist)
+  if not routes:
+    print('No routes selected.', file=sys.stderr)
+    return
 
+  loc = np.mean([r.start_coord() for r in routes], axis=0).tolist()
   run_map = folium.Map(location=loc, tiles=args.tileset, zoom_start=14)
 
+  coords = [r.coords for r in routes]
   if args.color_by == 'none':
-    lines = folium.MultiPolyLine(coords, color='red', opacity=0.2)
-    run_map.add_children(lines)
+    lines = folium.PolyLine(coords, color='red', opacity=0.6)
+    run_map.add_child(lines)
   else:
+    meta_fn = METADATA_FNS[args.color_by]
+    meta = np.array([meta_fn(route) for route in routes])
     # TODO: make the colors/labels work for simple numeric metas
     hex_colors = color_mapping(meta.astype(int), args.line_colormap)
     color_labels = meta.astype(str)
@@ -70,39 +79,15 @@ def parse_args():
                   help='Color mapping for routes. [%(default)s]')
   ap.add_argument('--color-tiles', action='store_true',
                   help='If passed, use full-color map tiles.')
-  ap.add_argument('--exclude-stdv', default=3, type=float,
-                  help='Exclude paths with a center > N standard deviations '
-                       'from the overall center.')
+  ap.add_argument('--max-start-dist', type=float, default=200,
+                  help='Maximum distance from route start to the '
+                       'mean starting location, in meters.')
   ap.add_argument('--color-by', choices=METADATA_FNS, default='start-time',
                   help='Data to color by. [%(default)s]')
   ap.add_argument('-o', '--output', default='map.html',
                   help='Name of the output html file.')
   ap.add_argument('route', type=open, nargs='+')
   return ap.parse_args()
-
-
-def aggregate_route_data(file_paths, metadata_fn):
-  all_coords = []
-  metadata = []
-  for fh in file_paths:
-    coords, times, elevations = parse_route(fh, return_time=True,
-                                            return_elevation=True)
-    if coords.shape[0] < 2 or coords.shape[1] != 2:
-      print('No coordinates in route file:', fh.name, file=sys.stderr)
-    else:
-      all_coords.append(coords)
-      metadata.append(metadata_fn(times, elevations))
-  return np.array(all_coords, dtype=object), np.array(metadata)
-
-
-def calc_center(all_coords, exclude_stdv):
-  centers = np.array([path.mean(axis=0) for path in all_coords])
-  center_mean = np.mean(centers, axis=0)
-  center_stdv = np.std(centers, axis=0)
-  stdv_from_center = (np.abs(centers - center_mean) / center_stdv).max(axis=1)
-  mask = stdv_from_center <= exclude_stdv
-  center = np.mean(centers[mask], axis=0)
-  return tuple(center), mask
 
 
 def color_mapping(arr, cmap):

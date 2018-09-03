@@ -1,8 +1,10 @@
-from __future__ import print_function, division
+from __future__ import print_function, division, absolute_import
 import numpy as np
 import os
 from collections import namedtuple
 from random import choice
+
+from .bbox import BBox
 
 try:
   from PIL import Image
@@ -14,26 +16,17 @@ try:
 except ImportError:
   from urllib import urlretrieve
 
-__all__ = ['stitch_tiles', 'coords_to_bbox']
+__all__ = ['stitch_tiles']
 
 # template URL for map tiles
 TILESET_URL_TEMPLATE = 'http://{abc}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'
 # width/height of tile images
 TILE_SIZE_PX = 256
-# more readable form of bounding box tuple
-_BBox = namedtuple('BBox', ('lon_min', 'lon_max', 'lat_min', 'lat_max'))
-
-
-def coords_to_bbox(coords):
-  coords = np.asarray(coords)
-  lat_min, lon_min = coords.min(axis=0)
-  lat_max, lon_max = coords.max(axis=0)
-  return _BBox(lon_min, lon_max, lat_min, lat_max)
 
 
 def stitch_tiles(bbox, zoom=None, cachedir='.', flatten=True,
                  margin_scale=0.05, ideal_width=1024, max_tiles=100):
-  bbox = _BBox(*bbox)
+  bbox = BBox(*bbox)
 
   if zoom is None:
     zoom = _ideal_zoom(bbox, ideal_width)
@@ -61,19 +54,13 @@ def stitch_tiles(bbox, zoom=None, cachedir='.', flatten=True,
   tile_image = np.vstack(images)
 
   # compute the bounding box of the map image
-  tiles_bbox = coords_to_bbox([
+  tiles_bbox = BBox.from_coords([
       _tile_to_latlon(tile_xs[0], tile_ys[0], zoom),
       _tile_to_latlon(tile_xs[-1]+1, tile_ys[-1]+1, zoom)
   ])
 
   # pad the bounding box, up to the tile bbox limits
-  margin_lon = (bbox.lon_max - bbox.lon_min) * margin_scale
-  margin_lat = (bbox.lat_max - bbox.lat_min) * margin_scale
-  padded_bbox = _BBox(
-      lon_min=max(tiles_bbox.lon_min, bbox.lon_min - margin_lon),
-      lon_max=min(tiles_bbox.lon_max, bbox.lon_max + margin_lon),
-      lat_min=max(tiles_bbox.lat_min, bbox.lat_min - margin_lat),
-      lat_max=min(tiles_bbox.lat_max, bbox.lat_max + margin_lat))
+  padded_bbox = bbox.pad(margin_scale).crop(tiles_bbox)
 
   # crop the image to avoid big empty bits
   px_lat, px_lon = tile_image.shape[:2]

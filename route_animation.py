@@ -24,19 +24,19 @@ except ImportError:
   def user_cache_dir(appname=None):
     return os.path.join(os.getcwd(), 'tiles')
 
-from route_plotter import parse_route, stitch_tiles, coords_to_bbox
+from route_plotter import BBox, Route, filter_routes, stitch_tiles
 
 
 def main():
   args = parse_args()
-  routes = _parse_routes(args.route)
+  routes = [Route.parse(f) for f in args.route]
   if not routes:
     print('No valid route data provided.', file=sys.stderr)
     return
   print('Parsed', len(routes), 'valid routes.')
 
-  routes = _filter_routes(routes, loop_gap_threshold=args.max_loop_gap,
-                          start_cluster_radius=args.max_start_dist)
+  routes = filter_routes(routes, loop_gap_threshold=args.max_loop_gap,
+                         start_cluster_radius=args.max_start_dist)
   assert bool(routes), '_filter_routes removed all routes'
   print('Filtered to', len(routes), 'routes.')
 
@@ -46,7 +46,7 @@ def main():
 
   if not os.path.exists(args.tile_cache):
     os.makedirs(args.tile_cache)
-  bg_img, bg_extent = stitch_tiles(_bounding_box(routes), zoom=args.zoom,
+  bg_img, bg_extent = stitch_tiles(BBox.from_routes(routes), zoom=args.zoom,
                                    cachedir=args.tile_cache,
                                    flatten=(not args.color_tiles),
                                    margin_scale=args.max_margin)
@@ -68,7 +68,7 @@ def main():
 
 
 def _prepare_frame_data(routes, num_frames=500, fade_secs=90):
-  max_duration = max(s[-1] for _,s in routes)
+  max_duration = max(r.seconds[-1] for r in routes)
   frame_times, dt = np.linspace(0, max_duration, num_frames, retstep=True)
 
   # convert fade_secs to frame units
@@ -80,15 +80,15 @@ def _prepare_frame_data(routes, num_frames=500, fade_secs=90):
   timestamps = ['%d:%02d:%02d' % tt for tt in zip(hours, mins, secs)]
 
   # break up routes into per-frame segments
-  frame_idxs = np.column_stack([np.searchsorted(time, frame_times)
-                                for _, time in routes])
+  frame_idxs = np.column_stack([np.searchsorted(r.seconds, frame_times)
+                                for r in routes])
   segments = []
   segment_frames = []
   start_idxs = np.zeros(len(routes), dtype=int)
   for frame, stop_idxs in enumerate(frame_idxs):
     updated, = np.where(start_idxs < stop_idxs)
     for i in updated:
-      r, _ = routes[i]
+      r = routes[i].coords
       segments.append(r[start_idxs[i]:stop_idxs[i], ::-1])
       segment_frames.append(frame)
     start_idxs[updated] = stop_idxs[updated] - 1
@@ -203,53 +203,6 @@ def _setup_figure(bg_img, bg_extent, scale=1.0):
   ax.autoscale(False)
   ax.margins(0, 0)
   return fig, ax
-
-
-def _parse_routes(file_paths):
-  all_coords = []
-  for fh in file_paths:
-    coords, times = parse_route(fh, return_time=True)
-    if coords.ndim == 2 and coords.shape[0] >= 2 and coords.shape[1] == 2:
-      seconds = (times - times[0]).astype('timedelta64[s]').astype(int)
-      assert coords.shape[0] == seconds.shape[0]
-      all_coords.append((coords, seconds))
-  return all_coords
-
-
-def _filter_routes(routes, loop_gap_threshold=200, start_cluster_radius=200):
-  """Selects routes that:
-    - start and end in roughly the same place (forming a loop)
-    - start close to the mean starting location
-  """
-  starts = np.array([r[0] for r,_ in routes])
-  ends = np.array([r[-1] for r,_ in routes])
-
-  # convert lat/lon displacements into approximate distances (meters)
-  gap_dists = _greatcircle_distance(starts, ends)
-  mask = gap_dists < loop_gap_threshold
-
-  # iterative thresholding to narrow down the center location
-  thresh = np.inf
-  while thresh > start_cluster_radius:
-    start_dist = _greatcircle_distance(starts, starts[mask].mean(axis=0))
-    thresh = np.percentile(start_dist[mask], 95)
-    mask &= start_dist < thresh
-  return [routes[i] for i in np.where(mask)[0]]
-
-
-def _bounding_box(routes):
-  min_coord = np.array([r.min(axis=0) for r,_ in routes]).min(axis=0)
-  max_coord = np.array([r.max(axis=0) for r,_ in routes]).max(axis=0)
-  return coords_to_bbox([min_coord, max_coord])
-
-
-def _greatcircle_distance(latlon0, latlon1):
-  EARTH_RADIUS = 6371000  # approximate spherical radius
-  lat0, lon0 = np.deg2rad(latlon0).T
-  lat1, lon1 = np.deg2rad(latlon1).T
-  return EARTH_RADIUS * np.arccos(
-      np.sin(lat0) * np.sin(lat1) +
-      np.cos(lat0) * np.cos(lat1) * np.cos(np.abs(lon0 - lon1)))
 
 
 if __name__ == '__main__':
