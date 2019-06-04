@@ -1,6 +1,7 @@
 from __future__ import print_function, division, absolute_import
 import numpy as np
 import os
+import requests
 from collections import namedtuple
 from random import choice
 
@@ -10,11 +11,6 @@ try:
   from PIL import Image
 except ImportError:
   import Image
-
-try:
-  from urllib.request import urlretrieve
-except ImportError:
-  from urllib import urlretrieve
 
 __all__ = ['stitch_tiles']
 
@@ -113,7 +109,10 @@ def _tile_to_latlon(x, y, zoom):
 def _download_tile(x, y, zoom, cache_path):
   url = TILESET_URL_TEMPLATE.format(zoom=zoom, x=x, y=y, abc=choice('abc'))
   print('Downloading', url, 'to', cache_path)
-  urlretrieve(url, cache_path)
+  r = requests.get(url, headers={'user-agent': 'Route Plotter'})
+  r.raise_for_status()
+  with open(cache_path, 'wb') as fh:
+    fh.write(r.content)
 
 
 def _imread(path, flatten=False):
