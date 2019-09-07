@@ -62,7 +62,8 @@ def filter_routes(routes, loop_gap_threshold=200, start_cluster_radius=200):
   while thresh > start_cluster_radius:
     center = starts[mask].mean(axis=0)
     start_dist = greatcircle_distance(starts, center)
-    thresh = np.percentile(start_dist[mask], 95)
+    thresh = max(np.percentile(start_dist[mask], 95),
+                 start_cluster_radius)
     mask &= start_dist < thresh
 
   keep_indices, = np.where(mask)
