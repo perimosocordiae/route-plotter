@@ -1,6 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Create a matplotlib animation from route data."""
-from __future__ import print_function, division
 import glob
 import numpy as np
 import os

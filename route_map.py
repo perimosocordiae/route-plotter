@@ -1,6 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Creates an HTML+JS-based map of given GPS routes."""
-from __future__ import print_function
 import fileinput
 import folium
 import numpy as np
