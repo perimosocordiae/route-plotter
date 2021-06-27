@@ -28,7 +28,12 @@ from route_plotter import BBox, Route, filter_routes, stitch_tiles
 
 def main():
   args = parse_args()
-  routes = [Route.parse(f) for f in args.route]
+  routes = []
+  for f in args.route:
+    try:
+      routes.append(Route.parse(f))
+    except ValueError as e:
+      print(e)
   if not routes:
     print('No valid route data provided.', file=sys.stderr)
     return

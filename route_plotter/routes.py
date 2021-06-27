@@ -28,7 +28,7 @@ class Route(object):
     coords, times = result[:2]
     elevs = result[2] if read_elevation else None
     if coords.ndim != 2 or coords.shape[0] < 2 or coords.shape[1] != 2:
-      raise ValueError('Invalid coords shape: %s' % coords.shape)
+      raise ValueError('Invalid coords shape %s in %s' % (coords.shape, file_or_path))
     seconds = (times - times[0]).astype('timedelta64[s]').astype(int)
     return cls(coords, seconds=seconds, start_time=times[0], elevations=elevs)
 
